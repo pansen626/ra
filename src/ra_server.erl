@@ -1114,20 +1114,21 @@ handle_await_condition(Msg, #{condition := Cond} = State0) ->
     {ra_server_state(), ra_effects()}.
 handle_leader_to_follower(#{pending_consistent_queries := Pending,
                             queries_waiting_heartbeats := Waiting,
-                            leader_id := Leader,
                             query_index := 0} = State0) ->
+    Leader = case leader_id(State0) of
+                 undefined -> node();
+                 L -> L
+             end,
     PendingEffects = lists:map(fun({From, _, _}) ->
-        {reply, From, {redirect, Leader}}
-    end,
-    Pending),
-
+                                       {reply, From, {redirect, Leader}}
+                               end, Pending),
     WaitingEffects = lists:map(fun({_, {From, _, _}}) ->
-        {reply, From, {redirect, Leader}}
-    end,
-    queue:to_list(Waiting)),
-
-    {State0#{pending_consistent_queries => [], queries_waiting_heartbeats => queue:new()},
-     PendingEffects ++ WaitingEffects}.
+                                       {reply, From, {redirect, Leader}}
+                               end, queue:to_list(Waiting)),
+    State1 = State0#{pending_consistent_queries => [],
+                     queries_waiting_heartbeats => queue:new()},
+    Effects1 = PendingEffects ++ WaitingEffects,
+    {State1, Effects1}.
 
 -spec tick(ra_server_state()) -> ra_effects().
 tick(#{effective_machine_module := MacMod,
@@ -1248,7 +1249,8 @@ wal_down_condition(_Msg, #{log := Log} = State) ->
     {ra_log:can_write(Log), State}.
 
 evaluate_commit_index_follower(#{commit_index := CommitIndex,
-                                 id := Id, leader_id := LeaderId,
+                                 id := Id,
+                                 leader_id := LeaderId,
                                  current_term := Term,
                                  log := Log} = State0, Effects0)
   when LeaderId =/= undefined ->

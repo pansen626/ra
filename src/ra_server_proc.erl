@@ -1240,11 +1240,14 @@ maybe_redirect(From, Msg, #state{pending_commands = Pending,
     Leader = leader_id(State),
     case LeaderMon of
         undefined ->
-            ?INFO("~s: leader call - leader not known. "
-                  "Command will be forwarded once leader is known.~n",
-                  [log_id(State)]),
-            {keep_state,
-             State#state{pending_commands = [{From, Msg} | Pending]}};
+%%          #TODO single node can work
+
+      ?INFO("~s: leader call - leader not known. "
+      "node will become to leader.~n",
+        [log_id(State)]),
+
+
+      {keep_state, State, {reply, From, {redirect, log_id(State)}}};
         _ when Leader =/= undefined ->
             {keep_state, State, {reply, From, {redirect, Leader}}}
     end.
